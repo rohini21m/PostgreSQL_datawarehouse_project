@@ -1,0 +1,1 @@
+-- we are using copy command in postgresql (BULK INSERT in SQL server) 
