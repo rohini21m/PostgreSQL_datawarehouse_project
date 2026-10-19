@@ -1,5 +1,8 @@
--- we are using copy command in postgresql (BULK INSERT in SQL server) 
+-- we are using copy command in postgresql (BULK INSERT in SQL server) . 
+--It first checks if table exists then drop it,if not created already,
+--then it creates a table and then inserts using COPY command. SQLSERVER uses BULK INSERT
 -- using stored procedure id data is stored in database server side: 
+-- This stored procedure does not accept any parameters or return any values.
 CREATE OR REPLACE PROCEDURE bronze.load_erp_px_cat()
 LANGUAGE plpgsql
 AS $$
