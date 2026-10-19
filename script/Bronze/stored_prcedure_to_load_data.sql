@@ -138,7 +138,7 @@ BEGIN
 
     RAISE NOTICE '------ INSERT DATA into erp_loc_a101 ----';
     EXECUTE 'COPY bronze.erp_loc_a101(cid, cntry) 
-             FROM ''/Users/path/Downloads/datawarehouse_project/source_erp/erp_loc_a101.csv'' 
+             FROM ''/Users/path/Downloads/datawarehouse_project/source_erp/erp_loc_a101.csv''
              WITH (FORMAT csv, HEADER true)';
                 
     RAISE NOTICE '------ SUCCESS: LOADED DATA INTO ERP_LOC_A101 ------';
@@ -184,4 +184,7 @@ EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE '------------------------------------------------';
     RAISE;
 END;
-$$;
+$$; 
+
+--- run the stored procedure by calling it 
+call  bronze.load_tables();
