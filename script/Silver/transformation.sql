@@ -1,3 +1,4 @@
+--data consistencey & data standards & duplicates 
 CREATE OR REPLACE PROCEDURE silver.load_tables()
 LANGUAGE plpgsql
 AS $$
@@ -62,3 +63,53 @@ BEGIN
 	lead(prd_start_dt)over(partition by prd_key order by prd_start_dt)::date-1 as prd_end_dt 
 	from bronze.crm_product_info   
 	RAISE NOTICE '------- Fixed prd_end_date, nulls, data types, names standardised in crm_prd_info---'
+
+    RAISE NOTICE '------- transform & clean bronze.crm_sales_details table------'
+	insert into silver.crm_sales_details(sls_ord_num,sls_prd_key,sls_cust_id,sls_order_dt,
+	sls_ship_dt,sls_due_dt,sls_sales,sls_quantity,sls_price)
+	-------- cleaning & transforming crm_sales_details 
+	select sls_ord_num::varchar,
+	sls_prd_key::varchar, 
+	sls_cust_id,
+    (CASE 
+    -- If it's '0', blank, or a broken numeric string, default to ship date minus 1 day
+    WHEN sls_order_dt = '0' OR NULLIF(sls_order_dt, '') IS NULL 
+         OR sls_order_dt ~ '^[0-9]+$' THEN (sls_ship_dt::date - INTERVAL '1 day')::date
+         
+    -- If it's a real YYYY-MM-DD string, compare it safely
+    WHEN sls_order_dt::date > sls_ship_dt::date or sls_order_dt>sls_due_dt ::date 
+	THEN (sls_ship_dt::date - INTERVAL '1 day')::date
+    ELSE sls_order_dt::date
+    END) AS sls_order_dt,
+	sls_ship_dt::date, --since ship, & due date doesnot has any issues like order date we ae not applying 
+	--same condition, or use sls_ship_dt>sls_due_dt then sls_due_date-2
+	sls_due_dt::date,
+--Rules :1)if sales are null, 0, -ve then sls_quantity*sls_price 
+--2)if sls_price is ve->+ve, 
+--3)if any 2 columns are out of sls_sales, sls_quantity, sls_price are null or all 3 are null then drop those records
+    
+    -- Rule 1 & 2: Calculate sales if missing/negative, ensure positive values, and drop decimals
+        (CASE 
+        WHEN sls_sales = '0' 
+             OR NULLIF(sls_sales, '') IS NULL 
+             OR (NULLIF(sls_sales, '')::numeric < 0) 
+             THEN ABS(COALESCE(NULLIF(sls_quantity, '')::numeric, 0) * COALESCE(NULLIF(sls_price, '')::numeric, 0))::int
+        ELSE ABS(NULLIF(sls_sales, '')::numeric)::int
+     END) AS sls_sales,
+
+    -- Standardize quantity to a clean positive integer
+    ABS(COALESCE(NULLIF(sls_quantity, '')::numeric, 0))::int AS sls_quantity,
+
+    -- Rule 2: Ensure price is positive (-ve -> +ve)
+    ABS(COALESCE(NULLIF(sls_price, '')::numeric, 0))::int AS sls_price
+
+    FROM bronze.crm_sales_details
+
+-- Rule 3: Drop records where any 2 columns or all 3 columns are null/blank
+    WHERE (
+     (CASE WHEN NULLIF(sls_sales, '') IS NULL THEN 1 ELSE 0 END) +
+     (CASE WHEN NULLIF(sls_quantity, '') IS NULL THEN 1 ELSE 0 END) +
+     (CASE WHEN NULLIF(sls_price, '') IS NULL THEN 1 ELSE 0 END)
+    ) < 2;
+    RAISE NOTICE '---- Cleaned & transformed bronze.crm_sales_details-----'
+	RAISE NOTICE '---- loaded into silver.crm_sales_details-----'
