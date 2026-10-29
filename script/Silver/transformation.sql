@@ -27,7 +27,7 @@ BEGIN
 		cst_create_date
     )
     SELECT 
-        cst_id,
+        cst_id::INT,
 		cst_key,
         TRIM(cst_firstname),
         TRIM(cst_lastname),
