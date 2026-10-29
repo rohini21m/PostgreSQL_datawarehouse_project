@@ -19,13 +19,16 @@ BEGIN
     RAISE NOTICE '------ insert into silver.crm_customer_info ------';
     INSERT INTO silver.crm_customer_info (
         cst_id, 
+		cst_key,
         cst_firstname, 
         cst_lastname, 
         cst_marital_status, 
-        cst_gndr
+        cst_gndr,
+		cst_create_date
     )
     SELECT 
-        cst_id::INT,
+        cst_id,
+		cst_key,
         TRIM(cst_firstname),
         TRIM(cst_lastname),
         CASE 
@@ -37,7 +40,8 @@ BEGIN
             WHEN cst_gndr = 'M' THEN 'Male'
             WHEN cst_gndr = 'F' THEN 'Female'
             ELSE 'Unknown' 
-        END AS cst_gndr
+        END AS cst_gndr,
+		cst_create_date::DATE
     FROM (
         SELECT *, ROW_NUMBER() OVER(PARTITION BY cst_id ORDER BY cst_create_date DESC) AS created_flag
         FROM bronze.crm_customer_info 
@@ -68,9 +72,9 @@ BEGIN
     )
     SELECT 
         prd_id::INT, 
-        REPLACE(SUBSTRING(prd_key, 1, 5), '-', '_') AS category_id, 
+        REPLACE(SUBSTRING(prd_key, 1, 5), '-', '_') AS cat_id, 
         SUBSTRING(prd_key, 7, LENGTH(prd_key)) AS prd_key, 
-        prd_nm, 
+        prd_nm::varchar, 
         COALESCE(NULLIF(prd_cost, '')::int, 0) AS prd_cost,
         CASE UPPER(TRIM(prd_line))
             WHEN 'R' THEN 'Road'
@@ -143,8 +147,11 @@ BEGIN
 
     INSERT INTO silver.erp_cust_az12 (cid, bdate, gen)
     SELECT 
-        CASE WHEN cid LIKE 'NAS%' THEN SUBSTRING(cid, 4, 10) ELSE cid END AS cid, 
-        CASE WHEN bdate > NOW()::DATE THEN NULL ELSE bdate END AS bdate, 
+        CASE WHEN cid LIKE 'NAS%' THEN SUBSTRING(cid, 4, 10) 
+		ELSE cid 
+		END AS cid, 
+        CASE WHEN bdate > NOW()::DATE THEN NULL
+		ELSE bdate END AS bdate, 
         CASE 
             WHEN UPPER(TRIM(gen)) IN ('M','MALE') THEN 'Male'
             WHEN UPPER(TRIM(gen)) IN ('F','FEMALE') THEN 'Female'
@@ -205,3 +212,5 @@ EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'Error State: %', SQLSTATE;
     RAISE NOTICE '------------------------------------------------';
 END $$; 
+
+CALL silver.load_tables()
