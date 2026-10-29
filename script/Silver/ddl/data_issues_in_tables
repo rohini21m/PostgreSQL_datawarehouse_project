@@ -1,0 +1,114 @@
+-- data checks 
+-- data cleaning for bronze layer  
+---check for duplicate sin crm_customer_info
+select cst_id, count(*) 
+from bronze.crm_customer_info 
+group by cst_id 
+having count(*)>1 
+--cst_id  is a primary key it must not have any duplicates 
+
+select * from 
+(
+select *, row_number()over(partition by cst_id order by cst_create_date desc) as created_flag
+from bronze.crm_customer_info 
+)t
+where created_flag=1 
+
+--check for gender & marital status 
+select distinct cst_gndr, count(*) -- NULL, M, F replace thhta into male & female 
+from bronze.crm_customer_info 
+group by cst_gndr   
+-- check for cst_gender data cosnistency 
+select distinct cst_marital_status, cst_gndr 
+from silver.crm_customer_info  
+
+--data issues/checks for table  crm_product_info 
+--sepetae categroy_id from  prd_key 
+-- check for prd_cost has any nulls and replace with 0 since its int 
+--(safe & agreed as per business validation rules)
+-- check if any product end date > product start date
+select product_count(*) from bronze.crm_product_info
+where prd_end_dt<prd_start_dt -- 200 records prd_end_date are before start date , they are invalid 
+-- dropping them wud effect dat aqulaity , 
+--so if we interchange v=both columns valuemes the nulls wont work  in prd_start_date,
+-- FIX : prd_start must be less than next record of prd_starts of same prduct nm 
+
+ select count(*) from bronze.crm_sales_details  
+
+ 
+-- recheck values in silver crm_customer_tables 
+    select cst_id--, count(*) 
+    from silver.crm_customer_info 
+    group by cst_id 
+    having count(*)>1 and cst_id is null
+
+------ transforming bronze.crm_product_info 
+    select cst_lastname , cst_firstname
+    from silver.crm_customer_info 
+    where cst_lastname!= TRIM(cst_lastname) 
+    and cst_firstname!=TRIM(cst_firstname)  
+---- data checks and transformation to be done in crm_sales_details 
+select  sls_ord_num, varchar -- SO69215 has inva;id orer date , -ve sales
+	sls_prd_key, varchar 
+	substring(sls_prd_key,1,7) as sales_prd_key_updated, 
+	sls_cust_id, varchar 
+	sls_order_dt, --date , has value as 0 instead of date stored as varchar
+	sls_ship_dt::date,
+	sls_due_dt::date,
+	sls_sales, -- change to int m has value 0,if orderis placed then sales must be 1,replace 0 with value 1,
+	--replace negative salue with positive sale value
+	sls_quantity, sls_price --change to int , --  sls_ship_dt,sls_due_dt  has no value 0 
+from bronze.crm_sales_details -- check if orderdate is greater than ship date then it must be corrected
+
+select * from bronze.crm_sales_details 
+where sls_sales::int!= (sls_quantity::int*sls_price::int) 
+or sls_sales = 'null' or sls_quantity = 'null' or sls_price = 'null'
+or sls_sales <= '0' or sls_quantity <= '0' or sls_price <= '0'
+--we have bad data quality for sls_sales,sls_quantity,sls_price, since business definitions are not available,
+--we as data team is taking some liberty, source system eerors are not resolved by business team and 
+--establishing some data quality  
+--Rules :1)if sales are null, 0, -ve then quantity*price 
+		 2) if price is ve->+ve, 
+		 3) if any 2 columns are out of sales, quantity, price are null or all 3 are null then drop the recor
+
+                                                                    sales   quantity price
+"SO57804"	"BK-M38S-40"	"16470"	"20130511"	"20130518"	"20130523"	"769"	"1"	"-769"
+"SO57916"	"TI-M602"	"23024"	"20130513"	"20130520"	"20130525"	"30"	"1"	"-30"
+"SO58326"	"FE-6654"	"12045"	"20130520"	"20130527"	"20130601"	"22"	"1"	"-22"
+"SO58335"	"TI-M823"	"13326"	"20130520"	"20130527"	"20130601"	"35"	"2"	"35"
+"SO58623"	"BK-R79Y-44"	"17012"	"20130525"	"20130601"	"20130606"	"1701"	"1"	"-1701"
+"SO58818"	"TI-R092"	"21387"	"20130528"	"20130604"	"20130609"	"21"	"1"	"-21"
+"SO61548"	"LJ-0192-L"	"12386"	"20130705"	"20130712"	"20130717"	"50"	"2"	"50"
+"SO61570"	"CA-1098"	"17809"	"20130705"	"20130712"	"20130717"	"-18"	"1"	"9"
+"SO61636"	"BC-M005"	"12914"	"20130706"	"20130713"	"20130718"	"0"	"1"	"10"
+"SO61879"	"LJ-0192-X"	"14455"	"20130710"	"20130717"	"20130722"	"50"	"2"	"50"
+"SO67707"	"TT-M928"	"26046"	"20131004"	"20131011"	"20131016"	"5"	"2"	"5"
+"SO67707"	"VE-C304-S"	"26046"	"20131004"	"20131011"	"20131016"	"64"	"4"	"64"
+"SO67708"	"TI-M267"	"26501"	"20131004"	"20131011"	"20131016"	"25"	"3"	"25"
+"SO67993"	"PK-7098"	"17084"	"20131008"	"20131015"	"20131020"	"40"	"1"	"2"
+"SO68126"	"LJ-0192-M"	"13604"	"20131010"	"20131017"	"20131022"	"2"	"1"	"50"
+"SO68418"	"GL-H102-M"	"25277"	"20131015"	"20131022"	"20131027"	"33"	"1"	"24"
+"SO68551"	"BC-R205"	"22691"	"20131017"	"20131024"	"20131029"	"8"	"1"	"9"
+"SO68889"	"TT-R982"	"14086"	"20131022"	"20131029"	"20131103"	"0"	"1"	"4"
+"SO69066"	"SJ-0194-L"	"17923"	"20131024"	"20131031"	"20131105"	"-54"	"1"	"54"
+"SO69215"	"TI-M823"	"16864"	"32154"	"20131102"	"20131107"	"-35"	"1"	"35"
+
+-- erp_custa_z12 table has not duplicates in cid, bdate, but has nulls and data issues in gen. 
+--we have 1000+ null gender records , 
+	select min(bdate), max(bdate), NOW()::DATE
+	from bronze.erp_cust_az12 
+   "1916-02-10"	 "9999-11-20"	"2026-10-28" , so bdate must be in this window.
+	data check for bdate in erp_cust_az12 :
+		
+	select bdate,count(bdate)
+	from bronze.erp_cust_az12 
+	where bdate>NOW()::DATE or bdate='1916-02-10' --(can have a 100 old customer in the system)
+	group by bdate -- 16 bdate records exists beyond NOW()::DATE , so replace with null, as gold layer 
+	and can have some nulls as real data is never perfect, shud be update dto source to either fix their system or 
+	use this approach or relace them with NOW()::DATE if ypu are ok with current date 
+	and custmomver beyound 100yrs starting from 1934
+
+	In table bronze.erp_px_cat_g1v2 , if country DE stands for germany in documentation or data catalog then make it 
+	while cleaning & transforming silver layer change to germany or leave it as DE 
+	
+
