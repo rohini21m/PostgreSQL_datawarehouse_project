@@ -1,5 +1,5 @@
 --data consistencey & data standards & duplicates 
-CREATE OR REPLACE PROCEDURE silver.transform_load_tables()
+CREATE OR REPLACE PROCEDURE silver.load_tables()
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -166,6 +166,7 @@ BEGIN
         REPLACE(cid, '-', '') AS cid,
         CASE 
             WHEN TRIM(cntry) IN ('US','USA') THEN 'United States'
+			WHEN TRIM(cntry)= 'DE' THEN 'Germany'
             WHEN TRIM(cntry) = '' OR cntry IS NULL THEN 'N/A'
             ELSE TRIM(cntry)
         END AS cntry
@@ -204,8 +205,3 @@ EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'Error State: %', SQLSTATE;
     RAISE NOTICE '------------------------------------------------';
 END $$; 
-
-
-call silver.transform_load_tables() 
-
-
